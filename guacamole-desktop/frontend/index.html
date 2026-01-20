@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Trident Connections</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="app">
+
+        <div id="menu">
+            <h1>Acceso Remoto</h1>
+            <div class="connection-list">
+                <div class="card">
+                    <h3>Windows (RDP)</h3>
+                    <button onclick="connect('windows')">Conectar</button>
+                </div>
+                <div class="card">
+                    <h3>Ubuntu Desktop (VNC)</h3>
+                    <button onclick="connect('ubuntu-vnc')">Conectar</button>
+                </div>
+                <div class="card">
+                    <h3>Ubuntu Server (SSH)</h3>
+                    <button onclick="connect('ubuntu-ssh')">Conectar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="display-container" class="hidden">
+            <div class="toolbar">
+                <button onclick="disconnect()">Volver al menú</button>
+            </div>
+            <div id="display"></div>
+        </div>
+
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

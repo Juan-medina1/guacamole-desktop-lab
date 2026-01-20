@@ -1,0 +1,17 @@
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+release/
+*.executable
+guacamole-lab/data/
+*.db
+*.sqlite
+.env
+.env.local
+.DS_Store
+Thumbs.db
+logs/
+*.log

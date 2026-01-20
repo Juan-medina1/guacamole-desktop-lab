@@ -1,0 +1,29 @@
+{
+  "name": "guacamole-desktop",
+  "version": "1.0.0",
+  "description": "Sistema de Acceso Remoto Guacamole",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder -wml"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "guacamole-common-js": "^1.5.0",
+    "guacamole-lite": "^1.2.0"
+  },
+  "devDependencies": {
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0"
+  },
+  "build": {
+    "appId": "com.guacamole.desktop",
+    "directories": {
+      "output": "build/installers"
+    }
+  }
+}

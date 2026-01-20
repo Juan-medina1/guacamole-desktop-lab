@@ -1,0 +1,97 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: guacamole-postgres
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      POSTGRES_PASSWORD: guacamole_pass
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./initdb.sql:/docker-entrypoint-initdb.d/initdb.sql
+    networks:
+      - guacamole-network
+    restart: unless-stopped
+
+  guacd:
+    image: guacamole/guacd:latest
+    container_name: guacamole-guacd
+    ports:
+      - "4822:4822"
+    networks:
+      - guacamole-network
+    restart: unless-stopped
+
+  guacamole:
+    image: guacamole/guacamole:latest
+    container_name: guacamole-client
+    depends_on:
+      - postgres
+      - guacd
+    environment:
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: "4822"
+
+      POSTGRESQL_HOSTNAME: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USERNAME: guacamole_user
+      POSTGRESQL_PASSWORD: guacamole_pass
+
+    ports:
+      - "8081:8080"
+    networks:
+      - guacamole-network
+    restart: unless-stopped
+    
+  windows-rdp:
+    image: dockurr/windows:latest
+    container_name: windows-rdp-target
+    devices:
+      - /dev/kvm
+    environment:
+      USERNAME: Administrator
+      PASSWORD: Windows123!
+    ports:
+      - "3389:3389"
+    volumes:
+      - ./data/windows:/storage
+    networks:
+      - guacamole-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+  ubuntu-ssh:
+    image: ubuntu:22.04
+    container_name: ubuntu-ssh-target
+    command: >
+      bash -c "apt-get update &&
+      apt-get install -y openssh-server sudo &&
+      (id -u sshuser >/dev/null 2>&1 || (useradd -m -s /bin/bash sshuser && echo 'sshuser:Ubuntu123!' | chpasswd)) &&
+      usermod -aG sudo sshuser &&
+      mkdir -p /var/run/sshd &&
+      /usr/sbin/sshd -D"
+    ports:
+      - "2222:22"
+    networks:
+      - guacamole-network
+    restart: unless-stopped
+
+  ubuntu-vnc:
+    image: consol/ubuntu-xfce-vnc
+    container_name: ubuntu-vnc-target
+    environment:
+      VNC_PW: Ubuntu123!
+      VNC_RESOLUTION: 1920x1080
+    ports:
+      - "5900:5901"
+    networks:
+      - guacamole-network
+    restart: unless-stopped
+
+networks:
+  guacamole-network:
+    driver: bridge

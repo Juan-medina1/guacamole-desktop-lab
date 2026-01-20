@@ -1,0 +1,122 @@
+/* ===============================
+   Variables
+   =============================== */
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #11111f;
+    --accent-primary: #5bc2e7;
+    --accent-secondary: #4ba8d1;
+    --border-color: rgba(91, 194, 231, 0.2);
+    --text-primary: #ffffff;
+    --text-secondary: #c0c5ce;
+}
+
+/* ===============================
+   Reset
+   =============================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: system-ui, sans-serif;
+}
+
+/* ===============================
+   App layout
+   =============================== */
+#app {
+    width: 100%;
+    height: 100vh;
+}
+
+/* ===============================
+   Helpers
+   =============================== */
+.hidden {
+    display: none !important;
+}
+
+/* ===============================
+   MENÚ
+   =============================== */
+#menu {
+    width: 100%;
+    height: 100vh;
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
+}
+
+#menu h1 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.connection-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+button {
+    margin-top: 1rem;
+    padding: 0.7rem 1.8rem;
+    border-radius: 8px;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ===============================
+   DISPLAY / GUACAMOLE
+   =============================== */
+#display-container {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: black;
+}
+
+.toolbar {
+    height: 56px;
+    padding: 0 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#display {
+    flex: 1;
+    background: black;
+    overflow: hidden;
+}
+
+/* IMPORTANTE PARA VNC */
+#display canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
