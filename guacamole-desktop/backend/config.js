@@ -25,6 +25,20 @@ module.exports = {
                     "password": "Ubuntu123!"
                 }
             }
+        },
+        "windows-rdp": {
+            "connection": {
+                "type": "rdp",
+                "settings": {
+                    "hostname": "windows-rdp-target",
+                    "port": 3389,
+                    "username": "Docker",
+                    "password": "Clave1234",
+                    "ignore-cert": "true",
+                    "security": "any"
+                }
+            }
         }
+
     }
 };

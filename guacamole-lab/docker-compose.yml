@@ -45,25 +45,28 @@ services:
     restart: unless-stopped
     
   windows-rdp:
-    image: dockurr/windows:latest
+    image: dockurr/windows
     container_name: windows-rdp-target
     devices:
       - /dev/kvm
+    cap_add:
+      - NET_ADMIN
     environment:
-      USERNAME: Administrator
-      PASSWORD: Windows123!
+      #USERNAME: Administrator
+      #PASSWORD: Windows123!
+      VERSION: "10"
+      RAM_SIZE: "2G"
     ports:
-      - "3389:3389"
+      - "8006:8006"
+      - "3389:3389/tcp"
+      - "3389:3389/udp" 
     volumes:
       - ./data/windows:/storage
+      - /dev/kvm:/dev/kvm:rw
     networks:
       - guacamole-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: '2.0'
+    restart: on-failure
+
   ubuntu-ssh:
     image: ubuntu:22.04
     container_name: ubuntu-ssh-target
