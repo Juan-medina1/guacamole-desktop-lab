@@ -62,5 +62,3 @@ npm install
  Iniciar la aplicación (Carpeta guacamole-desktop)
 npm start
 
-⚠️ NOTA IMPORTANTE: Contenedor Windows RDP
-Estado de Windows RDP: Actualmente, el servicio windows-rdp en el archivo docker-compose.yml presenta problemas de compatibilidad y estabilidad.Error conocido: Fallos en el arranque del contenedor o pérdida de conexión RDP inesperada.Recomendación: Usar preferiblemente las instancias de Ubuntu-VNC o Ubuntu-SSH para pruebas, ya que el contenedor de Windows requiere recursos de hardware específicos (KVM) que no siempre están disponibles en todos los entornos de Docker.
