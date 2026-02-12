@@ -9,7 +9,6 @@
 
 <body>
     <div id="app">
-
         <div id="menu">
             <h1>Acceso Remoto</h1>
             <div class="connection-list">
@@ -26,6 +25,27 @@
                     <button onclick="connect('ubuntu-ssh')">Conectar</button>
                 </div>
             </div>
+
+            <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
+                <button id="btn-historial" onclick="toggleAuditoria()">Ver / Ocultar Auditoría</button>
+            </div>
+
+            <div id="seccion-auditoria" class="hidden" style="margin-top: 20px;">
+                <h2>Historial de Conexiones</h2>
+                <table id="tabla-sesiones">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Conexión</th>
+                            <th>Usuario</th>
+                            <th>Tipo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-sesiones">
+                        </tbody>
+                </table>
+            </div>
         </div>
 
         <div id="display-container" class="hidden">
@@ -36,6 +56,33 @@
         </div>
 
     </div>
+    <div id="modal-log" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="modal-titulo">Log de Terminal</span>
+            <button onclick="cerrarModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <pre id="log-texto"></pre> </div>
+    </div>
+    </div>
+    <div id="modal-video" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>Reproductor de Sesión</span>
+            <button onclick="cerrarVideo()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body" style="background: #111; display: flex; flex-direction: column; align-items: center;">
+            <div id="video-display" style="width: 100%; border: 1px solid #444;"></div>
+            
+            <div class="controles" style="margin-top: 10px;">
+                <button onclick="reproductor.play()">▶ Reproducir</button>
+                <button onclick="reproductor.pause()">⏸ Pausa</button>
+            </div>
+        </div>
+    </div>
+</div>
+
     <script src="app.js"></script>
 </body>
 </html>

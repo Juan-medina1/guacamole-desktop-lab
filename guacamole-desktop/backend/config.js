@@ -1,7 +1,16 @@
+const path = require('path');
+
+const ROOT_PATH = path.resolve(__dirname, '..', '..');
+
 module.exports = {
     CRYPT_KEY: 'MySuperSecretKeyForParams1234567',
     GUACD_HOST: '127.0.0.1',
     GUACD_PORT: 4822,
+    RECORDING_PATH_GUACD: '/var/lib/guacamole/recordings', // Ruta interna del contenedor guacd para rdp/vnc
+    TYPESCRIPT_PATH_GUACD: '/var/lib/guacamole/typescript', // Ruta interna del contenedor guacd para ssh
+    RECORDING_PATH_HOST: path.resolve(ROOT_PATH, 'guacamole-lab', 'data', 'recordings'),// Ruta en el host para almacenar grabaciones de rdp/vnc
+    TYPESCRIPT_PATH_HOST: path.resolve(ROOT_PATH, 'guacamole-lab', 'data', 'typescript'),// Ruta en el host para almacenar typescripts de ssh
+    
     connections: {
         "ubuntu-vnc": {
             "connection": {
@@ -40,5 +49,13 @@ module.exports = {
             }
         }
 
-    }
+    },
+    db: {
+        user: 'guacamole_user',
+        host: '127.0.0.1',
+        database: 'guacamole_db',
+        password: 'guacamole_pass',
+        port: 5432,
+    },
+    
 };

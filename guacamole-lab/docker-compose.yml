@@ -6,6 +6,9 @@ services:
       POSTGRES_DB: guacamole_db
       POSTGRES_USER: guacamole_user
       POSTGRES_PASSWORD: guacamole_pass
+      
+    ports:
+      - "5432:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./initdb.sql:/docker-entrypoint-initdb.d/initdb.sql
@@ -20,6 +23,9 @@ services:
       - "4822:4822"
     networks:
       - guacamole-network
+    volumes:
+    - ./data/recordings:/var/lib/guacamole/recordings # Para video (RDP/VNC)
+    - ./data/typescript:/var/lib/guacamole/typescript # Para texto (SSH)
     restart: unless-stopped
 
   guacamole:
