@@ -160,10 +160,7 @@ async function abrirAuditoria(id, tipo) {
             console.log(`[VIDEO] Intentando cargar sesión: ${id}`);
             const videoUrl = `http://localhost:8000/view-video?sessionId=${id}`;
             const display = document.getElementById('video-display');
-            const statusElement = document.getElementById('video-status');
             display.innerHTML = ''; // Limpiar video anterior
-
-            statusElement.textContent = 'Cargando grabación...';
 
             // Crear túnel estático para el archivo de grabación
             const tunnel = new Guacamole.StaticHTTPTunnel(videoUrl);
@@ -196,29 +193,19 @@ async function abrirAuditoria(id, tipo) {
             // Auto-play al cargar
             setTimeout(() => {
                 reproductor.play();
-                statusElement.textContent = 'Reproduciendo...';
                 console.log('[VIDEO] Iniciando reproducción automática');
             }, 1000);
 
             reproductor.onplay = () => {
                 console.log('[VIDEO] Reproduciendo...');
-                statusElement.textContent = 'Reproduciendo...';
             };
 
             reproductor.onseek = (millis) => {
                 const seconds = Math.floor(millis / 1000);
-                statusElement.textContent = `Posición: ${seconds}s`;
-            };
-
-            reproductor.onpause = () => {
-                console.log('[VIDEO] Pausado');
-                statusElement.textContent = 'Pausado';
             };
 
             reproductor.onerror = (error) => {
                 console.error("[VIDEO] Error del reproductor:", error);
-                statusElement.textContent = 'Error al reproducir';
-                statusElement.style.color = '#f00';
                 alert("Error al reproducir la sesión: " + (error.message || 'Error desconocido'));
             };
 
@@ -239,12 +226,6 @@ function cerrarVideo() {
         reproductor.pause();
         reproductor.disconnect();
         reproductor = null;
-    }
-    
-    const statusElement = document.getElementById('video-status');
-    if (statusElement) {
-        statusElement.textContent = 'Cargando...';
-        statusElement.style.color = '#0f0';
     }
     
     document.getElementById('modal-video').classList.add('hidden');

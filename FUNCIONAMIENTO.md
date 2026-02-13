@@ -264,7 +264,6 @@ async function abrirAuditoria(id, tipo) {
 - **Eventos**:
   - `onplay`: Dispara cuando comienza reproducción
   - `onpause`: Dispara cuando se pausa
-  - `onseek`: Dispara al cambiar posición (millis)
   - `onerror`: Dispara en caso de error
 
 #### Formato de Grabación `.guac`
