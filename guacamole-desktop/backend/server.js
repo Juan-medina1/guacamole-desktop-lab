@@ -168,13 +168,18 @@ const server = http.createServer(async (req, res) => {
         const sessionId = parsedUrl.query.sessionId;
         let filePath = null;
 
+        console.log(`[VIDEO] Solicitando grabación: ${sessionId}`);
+
         // Buscamos la ruta en la DB para estar seguros
         try {
             const result = await pool.query(
                 'SELECT video_path FROM guacamole_connection_history WHERE session_id = $1 LIMIT 1',
                 [sessionId]
             );
-            if (result.rows.length > 0) filePath = result.rows[0].video_path;
+            if (result.rows.length > 0) {
+                filePath = result.rows[0].video_path;
+                console.log(`[VIDEO] Ruta desde DB: ${filePath}`);
+            }
         } catch (err) {
             console.error('[DB ERROR] Error al buscar video:', err.message);
         }
@@ -191,17 +196,22 @@ const server = http.createServer(async (req, res) => {
                 config.RECORDING_PATH_GUACD
             );
 
+            console.log(`[VIDEO] Ruta final: ${resolvedPath}`);
+
             if (resolvedPath && fs.existsSync(resolvedPath)) {
                 res.writeHead(200, { 
                     'Content-Type': 'application/octet-stream', 
-                    'Access-Control-Allow-Origin': '*' 
+                    'Access-Control-Allow-Origin': '*',
                 });
                 fs.createReadStream(resolvedPath).pipe(res);
+                console.log(`[VIDEO] Enviando archivo...`);
             } else {
-                res.writeHead(404); res.end("Video no encontrado.");
+                console.log(`[VIDEO] Archivo NO encontrado en: ${resolvedPath}`);
+                res.writeHead(404); res.end();
             }
         } catch (err) {
-            res.writeHead(500); res.end("Error al leer el video.");
+            console.error(`[VIDEO] Error al leer el video:`, err);
+            res.writeHead(500); res.end();
         }
         return;
     }

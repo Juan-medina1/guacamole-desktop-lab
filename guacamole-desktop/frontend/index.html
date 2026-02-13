@@ -73,11 +73,13 @@
             <button onclick="cerrarVideo()" class="close-btn">&times;</button>
         </div>
         <div class="modal-body" style="background: #111; display: flex; flex-direction: column; align-items: center;">
-            <div id="video-display" style="width: 100%; border: 1px solid #444;"></div>
+            <div id="video-display" style="width: 100%; max-height: 70vh; border: 1px solid #444; overflow: auto;"></div>
             
-            <div class="controles" style="margin-top: 10px;">
-                <button onclick="reproductor.play()">▶ Reproducir</button>
-                <button onclick="reproductor.pause()">⏸ Pausa</button>
+            <div class="controles" style="margin-top: 15px; display: flex; gap: 10px; align-items: center; width: 100%; padding: 10px; background: #222;">
+                <button onclick="if(reproductor) reproductor.play()">▶ Reproducir</button>
+                <button onclick="if(reproductor) reproductor.pause()">⏸ Pausar</button>
+                <button onclick="if(reproductor) reproductor.seek(0)">⏮ Reiniciar</button>
+                <span id="video-status" style="color: #0f0; margin-left: 10px;">Cargando...</span>
             </div>
         </div>
     </div>

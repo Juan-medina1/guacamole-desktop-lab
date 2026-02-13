@@ -155,33 +155,76 @@ async function abrirAuditoria(id, tipo) {
             alert(`Error al leer log: ${error.message}Revisa si el archivo existe en la carpeta de grabaciones.`);
         }
     } else {
-        // luego usaremos el reproductor de Guacamole 
+        // Reproductor de Guacamole para RDP/VNC
         try {
+            console.log(`[VIDEO] Intentando cargar sesión: ${id}`);
             const videoUrl = `http://localhost:8000/view-video?sessionId=${id}`;
             const display = document.getElementById('video-display');
+            const statusElement = document.getElementById('video-status');
             display.innerHTML = ''; // Limpiar video anterior
+
+            statusElement.textContent = 'Cargando grabación...';
 
             // Crear túnel estático para el archivo de grabación
             const tunnel = new Guacamole.StaticHTTPTunnel(videoUrl);
-            reproductor = new Guacamole.SessionPlayer(tunnel);
+            reproductor = new Guacamole.SessionRecording(tunnel);
 
-            // Añadir el display del reproductor al modal
-            display.appendChild(reproductor.getDisplay().getElement());
+            // Obtener el elemento de display del reproductor
+            const playerDisplay = reproductor.getDisplay();
+            const playerElement = playerDisplay.getElement();
+            
+            // Agregar al contenedor
+            display.appendChild(playerElement);
 
+            // Forzar actualización del canvas
+            playerDisplay.onresize = function(width, height) {
+                console.log(`[VIDEO] Display resize: ${width}x${height}`);
+                // Escalar para que quepa en el contenedor
+                const scale = Math.min(
+                    display.clientWidth / width,
+                    600 / height  // Max height
+                );
+                playerDisplay.scale(scale);
+            };
+
+            // Mostrar modal
             document.getElementById('modal-video').classList.remove('hidden');
 
-            reproductor.onload = () => {
+            // Conectar el reproductor
+            reproductor.connect();
+
+            // Auto-play al cargar
+            setTimeout(() => {
                 reproductor.play();
+                statusElement.textContent = 'Reproduciendo...';
+                console.log('[VIDEO] Iniciando reproducción automática');
+            }, 1000);
+
+            reproductor.onplay = () => {
+                console.log('[VIDEO] Reproduciendo...');
+                statusElement.textContent = 'Reproduciendo...';
+            };
+
+            reproductor.onseek = (millis) => {
+                const seconds = Math.floor(millis / 1000);
+                statusElement.textContent = `Posición: ${seconds}s`;
+            };
+
+            reproductor.onpause = () => {
+                console.log('[VIDEO] Pausado');
+                statusElement.textContent = 'Pausado';
             };
 
             reproductor.onerror = (error) => {
-                console.error("Error del reproductor:", error);
-                alert("Error al reproducir la sesión.");
+                console.error("[VIDEO] Error del reproductor:", error);
+                statusElement.textContent = 'Error al reproducir';
+                statusElement.style.color = '#f00';
+                alert("Error al reproducir la sesión: " + (error.message || 'Error desconocido'));
             };
 
         } catch (error) {
-            console.error("Error al cargar video:", error);
-            alert('Error al intentar abrir la grabación de escritorio.');
+            console.error("[VIDEO] Error al cargar video:", error);
+            alert('Error al intentar abrir la grabación de escritorio: ' + error.message);
         }
     }
 }
@@ -194,7 +237,16 @@ function cerrarModal() {
 function cerrarVideo() {
     if (reproductor) {
         reproductor.pause();
+        reproductor.disconnect();
+        reproductor = null;
     }
+    
+    const statusElement = document.getElementById('video-status');
+    if (statusElement) {
+        statusElement.textContent = 'Cargando...';
+        statusElement.style.color = '#0f0';
+    }
+    
     document.getElementById('modal-video').classList.add('hidden');
 }
 

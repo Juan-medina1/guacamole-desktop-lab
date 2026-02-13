@@ -98,34 +98,182 @@ El servidor utiliza `guacamole-lite` que actúa como proxy entre:
 
 **Configuración**: [backend/config.js](guacamole-desktop/backend/config.js)
 
-El sistema graba automáticamente todas las sesiones:
+El sistema graba automáticamente todas las sesiones mediante configuración dinámica inyectada en el token:
 
-**Para RDP/VNC**:
-- Se guarda video en `/var/lib/guacamole/recordings/` dentro del contenedor guacd
-- Formato: `sessionId` (archivo de video Guacamole)
-- Mapeado a: `./data/recordings/` en el host (config.RECORDING_PATH_HOST)
+#### Proceso de Grabación
 
-**Para SSH**:
-- Se guarda typescript (texto plano) en `/var/lib/guacamole/typescript/`
-- Formato: `sessionId` y `sessionId.timing`
-- Mapeado a: `./data/typescript/` en el host (config.TYPESCRIPT_PATH_HOST)
+**Flujo de configuración**:
+```javascript
+// En backend/server.js al generar token
+const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+if (connectionType === 'rdp' || connectionType === 'vnc') {
+    // Configurar grabación de video
+    connectionConfig.connection.settings['recording-path'] = '/var/lib/guacamole/recordings';
+    connectionConfig.connection.settings['recording-name'] = sessionId;
+    connectionConfig.connection.settings['create-recording-path'] = 'true';
+} 
+else if (connectionType === 'ssh') {
+    // Configurar typescript (log de comandos)
+    connectionConfig.connection.settings['typescript-path'] = '/var/lib/guacamole/typescript';
+    connectionConfig.connection.settings['typescript-name'] = sessionId;
+    connectionConfig.connection.settings['create-typescript-path'] = 'true';
+    connectionConfig.connection.settings['recording-include-keys'] = 'true';
+}
+```
+
+#### Almacenamiento de Grabaciones
+
+**Rutas de contenedor → host**:
+
+| Tipo | Ruta en guacd (contenedor) | Ruta en host |
+|------|---------------------------|--------------|
+| RDP/VNC | `/var/lib/guacamole/recordings/` | `guacamole-lab/data/recordings/` |
+| SSH | `/var/lib/guacamole/typescript/` | `guacamole-lab/data/typescript/` |
+
+**Mapeo en docker-compose.yml**:
+```yaml
+guacd:
+  volumes:
+    - ./data/recordings:/var/lib/guacamole/recordings
+    - ./data/typescript:/var/lib/guacamole/typescript
+```
+
+**Función de mapeo de rutas**:
+```javascript
+function mapGuacdPathToHost(filePath, hostBase, guacdBase) {
+    // Convierte /var/lib/guacamole/recordings/session_xxx
+    // a C:\...\guacamole-lab\data\recordings\session_xxx
+    if (filePath.startsWith(guacdBase)) {
+        const relative = filePath.slice(guacdBase.length);
+        return path.resolve(hostBase, relative);
+    }
+    return path.resolve(filePath);
+}
+```
 
 ### 7. Auditoría en Base de Datos
 
 **Tabla**: `guacamole_connection_history` en PostgreSQL
 
-Cada conexión registra:
+#### Esquema de la Tabla
+
 ```sql
-username: 'admin_electron'
-connection_name: 'ubuntu-vnc'
-start_date: NOW()
-session_id: 'session_1769723531357_9ermogycp'
-video_path: 'C:\\Users\\User\\Desktop\\Proyecto-guacamole\\guacamole-lab\\data\\recordings\\session_...'
-text_path: NULL (solo SSH tiene valor aquí)
+CREATE TABLE guacamole_connection_history (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(128) NOT NULL,
+    connection_name VARCHAR(128) NOT NULL,
+    start_date TIMESTAMP NOT NULL,
+    session_id VARCHAR(256) UNIQUE NOT NULL,
+    video_path TEXT,           -- Ruta completa en el host
+    text_path TEXT             -- Ruta completa en el host
+);
 ```
 
-Nota: Si `video_path` o `text_path` están vacíos, el backend intenta construir la ruta usando
-`config.RECORDING_PATH_HOST` o `config.TYPESCRIPT_PATH_HOST` y el `session_id`.
+#### Registro de Sesión
+
+Cada conexión registra:
+```javascript
+await pool.query(
+    `INSERT INTO guacamole_connection_history 
+    (username, connection_name, start_date, session_id, video_path, text_path) 
+    VALUES ($1, $2, NOW(), $3, $4, $5)`,
+    [
+        'admin_electron',                    // Usuario fijo
+        'ubuntu-vnc',                        // ID de conexión
+        'session_1769723531357_9ermogycp',  // SessionID único
+        'C:\\...\\data\\recordings\\session_...', // Ruta en host
+        null                                 // Solo SSH usa text_path
+    ]
+);
+```
+
+#### Endpoints de Auditoría
+
+El backend expone tres endpoints REST:
+
+**1. Listar sesiones**
+```http
+GET http://localhost:8000/sessions
+```
+Retorna array JSON con todas las sesiones ordenadas por fecha descendente.
+
+**2. Ver log de sesión SSH**
+```http
+GET http://localhost:8000/view-log?sessionId=session_xxx
+```
+- Busca `text_path` en DB para el sessionId
+- Si no existe en DB, usa fallback: `config.TYPESCRIPT_PATH_HOST/sessionId`
+- Mapea ruta de contenedor a host usando `mapGuacdPathToHost()`
+- Retorna contenido del archivo como texto plano
+
+**3. Ver grabación RDP/VNC**
+```http
+GET http://localhost:8000/view-video?sessionId=session_xxx
+```
+- Busca `video_path` en DB para el sessionId
+- Si no existe en DB, usa fallback: `config.RECORDING_PATH_HOST/sessionId`
+- Mapea ruta de contenedor a host usando `mapGuacdPathToHost()`
+- Stream del archivo `.guac` como `application/octet-stream`
+- Header `Content-Length` incluido para mejor streaming
+
+### 7.1 Reproductor de Sesiones
+
+**Componente**: Guacamole SessionRecording
+
+#### Implementación del Reproductor
+
+```javascript
+// En frontend/app.js
+async function abrirAuditoria(id, tipo) {
+    if (tipo === 'Escritorio') {
+        const videoUrl = `http://localhost:8000/view-video?sessionId=${id}`;
+        
+        // Crear túnel HTTP estático
+        const tunnel = new Guacamole.StaticHTTPTunnel(videoUrl);
+        
+        // Crear reproductor de sesión grabada
+        reproductor = new Guacamole.SessionRecording(tunnel);
+        
+        // Obtener display y agregarlo al DOM
+        const playerDisplay = reproductor.getDisplay();
+        const playerElement = playerDisplay.getElement();
+        display.appendChild(playerElement);
+        
+        // Configurar auto-escalado
+        playerDisplay.onresize = function(width, height) {
+            const scale = Math.min(
+                display.clientWidth / width,
+                600 / height
+            );
+            playerDisplay.scale(scale);
+        };
+        
+        // Conectar y reproducir
+        reproductor.connect();
+        setTimeout(() => reproductor.play(), 1000);
+    }
+}
+```
+
+#### Controles del Reproductor
+
+- **Play**: `reproductor.play()`
+- **Pausar**: `reproductor.pause()`
+- **Reiniciar**: `reproductor.seek(0)`
+- **Eventos**:
+  - `onplay`: Dispara cuando comienza reproducción
+  - `onpause`: Dispara cuando se pausa
+  - `onseek`: Dispara al cambiar posición (millis)
+  - `onerror`: Dispara en caso de error
+
+#### Formato de Grabación `.guac`
+
+Las grabaciones RDP/VNC usan el formato nativo de Guacamole:
+- **Estructura**: Instrucciones del protocolo Guacamole secuenciales con timestamps
+- **Ventaja**: Reproductor nativo de Guacamole (`SessionRecording`)
+- **Tamaño**: ~5-10 MB por minuto (depende de actividad en pantalla)
+- **Compatibilidad**: Solo reproducible con Guacamole SessionRecording
 
 ### 8. Infraestructura Docker
 
@@ -284,3 +432,180 @@ docker exec -it guacamole-postgres psql -U guacamole_user -d guacamole_db -c "SE
 - **Token temporal**: El token solo es válido para una conexión
 - **Puerto único**: El servidor backend siempre usa puerto 8000
 - **Grabaciones persistentes**: Se guardan en `./data/recordings` y `./data/typescript`
+
+## Troubleshooting
+
+### Problema: Reproducción muestra cursor pero no escritorio
+
+**Síntoma**: Al reproducir una sesión RDP/VNC, el cursor del mouse se mueve pero la pantalla queda en blanco.
+
+**Causas posibles**:
+1. **Escalado incorrecto**: El display no se está escalando adecuadamente
+2. **Instrucciones de display retrasadas**: Las instrucciones del protocolo Guacamole pueden estar desordenadas en la grabación
+
+**Solución aplicada**:
+```javascript
+// En abrirAuditoria() de app.js
+playerDisplay.onresize = function(width, height) {
+    const scale = Math.min(
+        display.clientWidth / width,
+        600 / height
+    );
+    playerDisplay.scale(scale);
+};
+```
+
+**Verificación**:
+1. Abrir DevTools (F12) en la app Electron
+2. Observar mensajes en consola durante reproducción
+3. Verificar que el evento `onresize` se dispare
+4. Confirmar que `width` y `height` tengan valores válidos
+
+**Workarounds**:
+- Esperar unos segundos después de iniciar reproducción
+- Reiniciar la reproducción con el botón "Reiniciar"
+- Cerrar y abrir nuevamente el modal de reproducción
+
+### Problema: Error al cargar grabación (404)
+
+**Síntoma**: Error "Video no disponible" o 404 en consola.
+
+**Causa**: La ruta de la grabación no se mapeó correctamente entre contenedor y host.
+
+**Solución**:
+1. Verificar que el archivo existe:
+```powershell
+ls C:\Users\User\Desktop\Proyecto-guacamole\guacamole-lab\data\recordings\
+```
+
+2. Verificar que el sessionId es correcto en la base de datos:
+```powershell
+docker exec -it guacamole-postgres psql -U guacamole_user -d guacamole_db -c "SELECT session_id, video_path FROM guacamole_connection_history WHERE video_path IS NOT NULL ORDER BY start_date DESC LIMIT 5;"
+```
+
+3. Revisar los logs del backend:
+```javascript
+// En /view-video endpoint
+console.log('Sirviendo video desde ruta:', filePath);
+console.log('Archivo existe:', fs.existsSync(filePath));
+```
+
+### Problema: Grabación de SSH no contiene comandos
+
+**Síntoma**: El typescript muestra solo caracteres de control, no los comandos ejecutados.
+
+**Causa**: El contenedor SSH puede no estar configurado para guardar historial correctamente.
+
+**Solución**:
+Asegurarse de que `recording-include-keys` está en `true`:
+```javascript
+connectionConfig.connection.settings['recording-include-keys'] = 'true';
+```
+
+### Problema: Contenedor Windows RDP no inicia
+
+**Síntoma**: Error al iniciar `windows-rdp-target` en Docker.
+
+**Causa**: El contenedor Windows requiere virtualización KVM, que no está disponible en Windows.
+
+**Solución**:
+Este contenedor solo funciona en Linux con KVM habilitado. En Windows, usar alternativas:
+- Usar VNC o SSH en contenedores Linux
+- Conectar a máquinas Windows reales en la red local
+- Usar WSL2 con nested virtualization (experimental)
+
+### Problema: Puerto 8000 ya en uso
+
+**Síntoma**: Error `EADDRINUSE` al iniciar la app.
+
+**Solución**:
+1. Ver qué proceso usa el puerto:
+```powershell
+netstat -ano | findstr :8000
+```
+
+2. Matar el proceso:
+```powershell
+taskkill /PID <PID> /F
+```
+
+3. O cambiar el puerto en [config.js](guacamole-desktop/backend/config.js):
+```javascript
+const PORT = 8001;
+```
+
+### Problema: Base de datos no tiene registros
+
+**Síntoma**: La tabla `guacamole_connection_history` está vacía.
+
+**Solución**:
+1. Verificar que el contenedor postgres esté corriendo:
+```powershell
+docker ps | findstr postgres
+```
+
+2. Verificar que `initdb.sql` se ejecutó correctamente:
+```powershell
+docker logs guacamole-postgres | findstr "CREATE TABLE"
+```
+
+3. Si la tabla no existe, recrearla:
+```powershell
+docker exec -i guacamole-postgres psql -U guacamole_user -d guacamole_db < guacamole-lab/initdb.sql
+```
+
+### Problema: Conexión WebSocket falla inmediatamente
+
+**Síntoma**: Error de conexión al intentar conectar a la máquina remota.
+
+**Causas posibles**:
+1. **Token inválido**: Verificar que el cifrado/descifrado funciona
+2. **guacd no responde**: Verificar que el contenedor guacd está corriendo
+3. **Máquina objetivo inalcanzable**: Verificar red Docker
+
+**Diagnóstico**:
+```powershell
+# Verificar contenedores
+docker ps
+
+# Verificar logs de guacd
+docker logs guacamole-guacd
+
+# Verificar red Docker
+docker network inspect guacamole-network
+
+# Probar conexión manual a guacd
+telnet localhost 4822
+```
+
+### Logs y Debugging
+
+**Backend logs** (server.js):
+- Token generado: `console.log('Token generado para:', connectionId)`
+- Registros en DB: `console.log('Sesión registrada:', session_id)`
+- Streaming de video: `console.log('Sirviendo video:', filePath)`
+
+**Frontend logs** (app.js):
+- Conexión iniciada: `console.log('Conectando con sessionId:', sessionId)`
+- Reproducción iniciada: `console.log('Conectando reproductor...')`
+- Estados del reproductor: `console.log('Reproducción iniciada')`
+
+**Activar logs de guacamole-lite**:
+```javascript
+// En server.js, pasar opciones de debug al constructor
+const GuacamoleLite = require('guacamole-lite');
+const server = new GuacamoleLite(/* opciones */, {
+    log: {
+        level: 'DEBUG'
+    }
+});
+```
+
+**Verificar conectividad contenedores**:
+```powershell
+# Ping desde guacd a ubuntu-vnc-target
+docker exec guacamole-guacd ping ubuntu-vnc-target
+
+# Verificar puerto VNC
+docker exec guacamole-guacd nc -zv ubuntu-vnc-target 5901
+```
