@@ -26,6 +26,7 @@ proyecto-guacamole/
 
 ### 🖥️ App de Escritorio
 - **Interfaz nativa** para conectar a múltiples máquinas (RDP, VNC, SSH)
+- **Multisesión**: unirse a una sesión activa con ID compartido
 - **Grabación automática** de todas las sesiones
 - **Reproductor integrado** para visualizar sesiones grabadas
 - **Auditoría completa** con historial de conexiones
@@ -217,6 +218,18 @@ El backend expone los siguientes endpoints:
 - `GET /sessions` - Lista todas las sesiones grabadas
 - `GET /view-log?sessionId=XXX` - Descarga log de sesión SSH
 - `GET /view-video?sessionId=XXX` - Stream de grabación RDP/VNC
+
+## 🤝 Multisesión (Join)
+
+Puedes compartir una sesión activa usando el **ID de sesión** que entrega `guacamole-lite`:
+
+1. Conecta normalmente a una máquina.
+2. Copia el **ID actual** desde la barra superior.
+3. Abre otra instancia de la app (otro `npm start`).
+4. Pega el ID en **Unirse a Sesion** y pulsa **Unirse**.
+
+**Endpoint usado internamente**:
+- `GET /token?join=ID` - Genera un token de unión a una sesión activa
 
 ## ⚠️ Notas Importantes
 

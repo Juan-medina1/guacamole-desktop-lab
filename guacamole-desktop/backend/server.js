@@ -11,7 +11,6 @@ const path = require('path');
 const pool = new Pool(config.db);
 
 // Función para mapear rutas de guacd a rutas del host 
-//Revisar esto!!!
 function mapGuacdPathToHost(filePath, hostBase, guacdBase) {
     if (!filePath) return null;
 
@@ -42,8 +41,39 @@ function encryptToken(value) {
 const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url, true); //se pasa a true para obtener query como objeto
     
-    // RUTA 1: Generación de token (se pasa de objeto a string token)
-    if (parsedUrl.pathname === '/token' && parsedUrl.query.connection) { 
+    // RUTA 1: Generación de token 
+    if (parsedUrl.pathname === '/token') {
+        if (parsedUrl.query.join) {
+            const joinId = parsedUrl.query.join;// obtenemos el ID de unión de la query
+            const readOnly = parsedUrl.query.readOnly === 'true';
+
+            const joinConfig = {
+                connection: {
+                    join: joinId,
+                    settings: {
+                        'read-only': readOnly
+                    }
+                }
+            };
+
+            const token = encryptToken(joinConfig);
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({
+                token: token,
+                joinId: joinId
+            }));
+            return;
+        }
+
+        if (!parsedUrl.query.connection) {
+            res.writeHead(400);
+            res.end();
+            return;
+        }
+
         const connectionId = parsedUrl.query.connection; //obtener el nombre de la conexión
         const baseConfig = config.connections[connectionId]; 
         
@@ -130,16 +160,13 @@ const server = http.createServer(async (req, res) => {
                 'SELECT text_path FROM guacamole_connection_history WHERE session_id = $1 LIMIT 1',
                 [sessionId]
             );
-            if (result.rows.length > 0) filePath = result.rows[0].text_path;
+            if (result.rows.length > 0) 
+                filePath = result.rows[0].text_path;// obtenemos la ruta del log desde la DB
         } catch (err) {
             console.error('[DB ERROR] Error al buscar log:', err.message);
         }
 
-        // Fallback: si no hay ruta en DB, intentar construirla
-        if (!filePath) {
-            filePath = path.resolve(config.TYPESCRIPT_PATH_HOST, sessionId);
-        }
-
+        //convertir ruta de guacd a ruta del host para leer el archivo
         try {
             const resolvedPath = mapGuacdPathToHost(
                 filePath,
@@ -177,18 +204,14 @@ const server = http.createServer(async (req, res) => {
                 [sessionId]
             );
             if (result.rows.length > 0) {
-                filePath = result.rows[0].video_path;
+                filePath = result.rows[0].video_path;// obtenemos la ruta del video desde la DB
                 console.log(`[VIDEO] Ruta desde DB: ${filePath}`);
             }
         } catch (err) {
             console.error('[DB ERROR] Error al buscar video:', err.message);
         }
 
-        // Fallback: si no hay ruta en DB, intentar construirla
-        if (!filePath) {
-            filePath = path.resolve(config.RECORDING_PATH_HOST, sessionId);
-        }
-
+        // Convertir ruta de guacd a ruta del host para leer el archivo
         try {
             const resolvedPath = mapGuacdPathToHost(
                 filePath,

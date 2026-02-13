@@ -27,6 +27,10 @@ La interfaz muestra tres tarjetas de conexión:
 - **Ubuntu Desktop (VNC)**: Puerto 5901
 - **Ubuntu Server (SSH)**: Puerto 22
 
+Tambien incluye una tarjeta para **Unirse a Sesion**, donde se ingresa un ID de sesion compartido.
+
+En la vista de sesion activa, la barra superior muestra el **ID actual** y el boton **Copiar ID**.
+
 Cuando presionas "Conectar" en cualquier tarjeta, se ejecuta `connect(machineId)` desde [app.js](guacamole-desktop/frontend/app.js).
 
 ### 3. Generación del Token
@@ -55,6 +59,32 @@ Cifra la configuración con AES-256-CBC usando CRYPT_KEY
 Retorna el token cifrado al frontend
 ```
 
+#### Token de Union (Join)
+
+Si el usuario quiere unirse a una sesion activa:
+
+```
+frontend/app.js solicita: GET /token?join=ID
+        ↓
+Backend crea un token con connection.join = ID
+        ↓
+No se registra auditoria ni se crea nueva grabacion
+        ↓
+Retorna el token cifrado al frontend
+```
+
+**Estructura del token join**:
+```javascript
+{
+    connection: {
+        join: "<ID>",
+        settings: {
+            "read-only": false
+        }
+    }
+}
+```
+
 **Función de cifrado**:
 ```javascript
 encryptToken(value)
@@ -79,6 +109,20 @@ Una vez recibido el token:
    - Resize: Ajusta escala del display al tamaño de ventana
 5. Ejecuta client.connect() para iniciar la conexión
 ```
+
+### 4.1 Multisesion (Join)
+
+**Archivo**: [frontend/app.js](guacamole-desktop/frontend/app.js)
+
+Cuando una sesion se abre correctamente, `guacamole-lite` entrega el ID via:
+
+```javascript
+tunnel.onuuid = (uuid) => {
+    // ID de sesion compartible
+};
+```
+
+Ese ID se muestra en la barra superior y puede copiarse para que otra instancia se una usando `/token?join=ID`.
 
 ### 5. Protocolo Guacamole
 
@@ -373,6 +417,21 @@ El `hostname` usa la resolución DNS interna de Docker (red `guacamole-network`)
 [Sistema]
    ✓ Grabación guardada
    ✓ Registro en DB completado
+```
+
+### Flujo de Union (Join)
+
+```
+[Usuario B]
+    ↓ Ingresa ID de sesion en "Unirse a Sesion"
+[Frontend - app.js]
+    ↓ GET http://localhost:8000/token?join=<ID>
+[Backend - server.js]
+    ↓ Genera token con connection.join
+    ↓ Retorna { token }
+[Frontend - app.js]
+    ↓ WebSocket ws://localhost:8000/?token=xxxxx
+    ↓ Se une a la sesion activa
 ```
 
 ## Auditoria (API)

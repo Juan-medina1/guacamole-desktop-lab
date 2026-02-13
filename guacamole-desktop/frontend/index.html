@@ -24,6 +24,11 @@
                     <h3>Ubuntu Server (SSH)</h3>
                     <button onclick="connect('ubuntu-ssh')">Conectar</button>
                 </div>
+                <div class="card">
+                    <h3>Unirse a Sesion</h3>
+                    <input id="join-id-input" type="text" placeholder="ID de sesion" />
+                    <button onclick="joinSession()">Unirse</button>
+                </div>
             </div>
 
             <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
@@ -51,6 +56,10 @@
         <div id="display-container" class="hidden">
             <div class="toolbar">
                 <button onclick="disconnect()">Volver al menú</button>
+                <span style="margin-left: 12px; font-size: 12px; color: #fff;">
+                    ID actual: <span id="join-id">-</span>
+                </span>
+                <button onclick="copyJoinId()" style="margin-left: 8px;">Copiar ID</button>
             </div>
             <div id="display"></div>
         </div>

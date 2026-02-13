@@ -4,72 +4,125 @@ let client = null;
 let keyboard = null; 
 let reproductor = null; // Variable global para el reproductor de video
 
+// Función para detectar si un input de texto está enfocado
+function isTextInputFocused() {
+    const active = document.activeElement;
+    if (!active) return false;
+    const tag = active.tagName ? active.tagName.toLowerCase() : '';
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+}
+
 if (!keyboard) {
     keyboard = new Guacamole.Keyboard(document);
 
     keyboard.onkeydown = (keysym) => {
-        if (client) {
-            client.sendKeyEvent(1, keysym);
-            return false; 
-        }
+        if (!client || isTextInputFocused()) return true;
+        client.sendKeyEvent(1, keysym);
+        return false; 
     };
 
     keyboard.onkeyup = (keysym) => {
-        if (client) {
-            client.sendKeyEvent(0, keysym);
-            return false;
+        if (!client || isTextInputFocused()) return true;
+        client.sendKeyEvent(0, keysym);
+        return false;
+    };
+}
+
+async function startClient(token) {
+    // UI
+    document.getElementById('menu').classList.add('hidden');
+    document.getElementById('display-container').classList.remove('hidden');
+
+    // Tunnel and Client
+    const tunnel = new Guacamole.WebSocketTunnel(
+        `ws://localhost:8000/?token=${encodeURIComponent(token)}`
+    );
+
+    tunnel.onuuid = (uuid) => {
+        const joinLabel = document.getElementById('join-id');
+        if (joinLabel) {
+            joinLabel.textContent = uuid;
         }
     };
+
+    client = new Guacamole.Client(tunnel);
+
+    // Display
+    const display = document.getElementById('display');
+    display.innerHTML = '';
+    const element = client.getDisplay().getElement();
+    display.appendChild(element);
+
+    client.getDisplay().onresize = function(width, height) {
+        client.getDisplay().scale(Math.min(
+            window.innerWidth / width,
+            window.innerHeight / height
+        ));
+    };
+    client.onstatechange = (state) => {
+        if (state === 3) { // CONNECTED
+            client.sendSize(window.innerWidth, window.innerHeight);
+        }
+    };
+
+    // Mouse 
+    const mouse = new Guacamole.Mouse(element);
+    mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = (s) => {
+        if (client) client.sendMouseState(s);
+    };
+
+    // Connect
+    client.connect();
 }
 
 async function connect(machineId) {
     try {
-        // UI
-        document.getElementById('menu').classList.add('hidden');
-        document.getElementById('display-container').classList.remove('hidden');
-
-        // Token
         const response = await fetch(`http://localhost:8000/token?connection=${machineId}`);
         const { token } = await response.json();
-
-        // Tunnel and Client
-        const tunnel = new Guacamole.WebSocketTunnel(
-            `ws://localhost:8000/?token=${encodeURIComponent(token)}`
-        );
-
-        client = new Guacamole.Client(tunnel);
-
-        // Display
-        const display = document.getElementById('display');
-        display.innerHTML = '';
-        const element = client.getDisplay().getElement();
-        display.appendChild(element);
-
-        client.getDisplay().onresize = function(width, height) {
-            client.getDisplay().scale(Math.min(
-                window.innerWidth / width,
-                window.innerHeight / height
-            ));
-        };
-        client.onstatechange = (state) => {
-            if (state === 3) { // CONNECTED
-                client.sendSize(window.innerWidth, window.innerHeight);
-            }
-        };
-
-        // Mouse 
-        const mouse = new Guacamole.Mouse(element);
-        mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = (s) => {
-            if (client) client.sendMouseState(s);
-        };
-
-        // Connect
-        client.connect();
-
+        await startClient(token);
     } catch (err) {
         console.error(err);
         alert(err.message);
         disconnect();
+    }
+}
+
+async function joinSession() {
+    try {
+        const joinInput = document.getElementById('join-id-input');
+        const joinId = joinInput ? joinInput.value.trim() : '';
+
+        if (!joinId) {
+            alert('Ingresa un ID de sesion para unirte.');
+            return;
+        }
+
+        const response = await fetch(`http://localhost:8000/token?join=${encodeURIComponent(joinId)}`);
+        const { token } = await response.json();
+        await startClient(token);
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+        disconnect();
+    }
+}
+
+async function copyJoinId() {
+    const joinLabel = document.getElementById('join-id');
+    const joinId = joinLabel ? joinLabel.textContent.trim() : '';
+
+    if (!joinId || joinId === '-') {
+        alert('No hay un ID de sesion para copiar.');
+        return;
+    }
+
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(joinId);
+            return;
+        }
+    } catch (err) {
+        console.warn('No se pudo usar clipboard nativo:', err);
     }
 }
 
@@ -84,9 +137,16 @@ function disconnect() {
 
     document.getElementById('display-container').classList.add('hidden');
     document.getElementById('menu').classList.remove('hidden');
+
+    const joinLabel = document.getElementById('join-id');
+    if (joinLabel) {
+        joinLabel.textContent = '-';
+    }
 }
 
 window.connect = connect;
+window.joinSession = joinSession;
+window.copyJoinId = copyJoinId;
 window.disconnect = disconnect;
 
 // Función para mostrar/ocultar y disparar la carga
@@ -151,7 +211,7 @@ async function abrirAuditoria(id, tipo) {
             document.getElementById('modal-log').classList.remove('hidden');
 
         } catch (error) {
-            console.error('Error detallado:', error);
+            console.error('Error :', error);
             alert(`Error al leer log: ${error.message}Revisa si el archivo existe en la carpeta de grabaciones.`);
         }
     } else {
