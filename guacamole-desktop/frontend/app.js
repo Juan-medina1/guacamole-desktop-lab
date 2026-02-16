@@ -47,41 +47,23 @@ async function startClient(token) {
 
     client = new Guacamole.Client(tunnel);
 
-    // Display: usar el contenedor real (#display), no la ventana completa, para que no se corte y el ratón coincida
+    // Display
     const display = document.getElementById('display');
     display.innerHTML = '';
     const element = client.getDisplay().getElement();
     display.appendChild(element);
 
-    function getDisplaySize() {
-        const el = document.getElementById('display');
-        return { w: el.clientWidth, h: el.clientHeight };
-    }
-
-    function applyScaleAndSize() {
-        const { w, h } = getDisplaySize();
-        if (client && w > 0 && h > 0) {
-            client.sendSize(w, h);
-        }
-    }
-
     client.getDisplay().onresize = function(width, height) {
-        const { w, h } = getDisplaySize();
-        if (w > 0 && h > 0) {
-            client.getDisplay().scale(Math.min(w / width, h / height));
-        }
+        client.getDisplay().scale(Math.min(
+            window.innerWidth / width,
+            window.innerHeight / height
+        ));
     };
     client.onstatechange = (state) => {
         if (state === 3) { // CONNECTED
-            applyScaleAndSize();
+            client.sendSize(window.innerWidth, window.innerHeight);
         }
     };
-
-    // Si redimensionas la ventana, pedir nueva resolución al remoto para que no se corte
-    window.addEventListener('resize', function onResize() {
-        if (!client) return;
-        applyScaleAndSize();
-    });
 
     // Mouse 
     const mouse = new Guacamole.Mouse(element);

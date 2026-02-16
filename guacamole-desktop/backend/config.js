@@ -44,10 +44,7 @@ module.exports = {
                     "username": "juan",
                     "password": "juan",
                     "ignore-cert": "true",
-                    "security": "any",
-                    "width": 1280,
-                    "height": 720,
-                    "dpi": 96
+                    "security": "any"
                 }
             }
         }
