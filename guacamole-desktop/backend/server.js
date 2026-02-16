@@ -93,9 +93,9 @@ const server = http.createServer(async (req, res) => {
         // Configuración dinámica basada en protocolo
         if (connectionType === 'rdp' || connectionType === 'vnc') {
             connectionConfig.connection.settings['recording-path'] = config.RECORDING_PATH_GUACD;
-            connectionConfig.connection.settings['recording-name'] = sessionId;
+            connectionConfig.connection.settings['recording-name'] = `${sessionId}.guac`;
             connectionConfig.connection.settings['create-recording-path'] = 'true';
-            videoPath = `${config.RECORDING_PATH_HOST}/${sessionId}`;
+            videoPath = `${config.RECORDING_PATH_HOST}/${sessionId}.guac`;
         } 
         else if (connectionType === 'ssh') {
             connectionConfig.connection.settings['typescript-path'] = config.TYPESCRIPT_PATH_GUACD;
