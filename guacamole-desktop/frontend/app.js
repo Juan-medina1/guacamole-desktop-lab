@@ -47,23 +47,41 @@ async function startClient(token) {
 
     client = new Guacamole.Client(tunnel);
 
-    // Display
+    // Display: usar el contenedor real (#display), no la ventana completa, para que no se corte y el ratón coincida
     const display = document.getElementById('display');
     display.innerHTML = '';
     const element = client.getDisplay().getElement();
     display.appendChild(element);
 
+    function getDisplaySize() {
+        const el = document.getElementById('display');
+        return { w: el.clientWidth, h: el.clientHeight };
+    }
+
+    function applyScaleAndSize() {
+        const { w, h } = getDisplaySize();
+        if (client && w > 0 && h > 0) {
+            client.sendSize(w, h);
+        }
+    }
+
     client.getDisplay().onresize = function(width, height) {
-        client.getDisplay().scale(Math.min(
-            window.innerWidth / width,
-            window.innerHeight / height
-        ));
+        const { w, h } = getDisplaySize();
+        if (w > 0 && h > 0) {
+            client.getDisplay().scale(Math.min(w / width, h / height));
+        }
     };
     client.onstatechange = (state) => {
         if (state === 3) { // CONNECTED
-            client.sendSize(window.innerWidth, window.innerHeight);
+            applyScaleAndSize();
         }
     };
+
+    // Si redimensionas la ventana, pedir nueva resolución al remoto para que no se corte
+    window.addEventListener('resize', function onResize() {
+        if (!client) return;
+        applyScaleAndSize();
+    });
 
     // Mouse 
     const mouse = new Guacamole.Mouse(element);
@@ -142,6 +160,8 @@ function disconnect() {
     if (joinLabel) {
         joinLabel.textContent = '-';
     }
+    // Refrescar el apartado de grabaciones al volver al menú
+    cargarHistorial();
 }
 
 window.connect = connect;
@@ -149,45 +169,77 @@ window.joinSession = joinSession;
 window.copyJoinId = copyJoinId;
 window.disconnect = disconnect;
 
-// Función para mostrar/ocultar y disparar la carga
-async function toggleAuditoria() {
-    const seccion = document.getElementById('seccion-auditoria');
-    seccion.classList.toggle('hidden');
-    
-    // Solo cargamos los datos si la sección se va a mostrar
-    if (!seccion.classList.contains('hidden')) {
-        await cargarHistorial();
-    }
+// Cargar grabaciones al abrir la app y al volver al menú (apartado siempre visible)
+function initGrabaciones() {
+    cargarHistorial();
 }
 
 // Función que consulta al backend (puerto 8000)
 async function cargarHistorial() {
+    const tbody = document.getElementById('lista-sesiones');
+    const vacioEl = document.getElementById('grabaciones-vacio');
+    const tablaEl = document.getElementById('tabla-sesiones');
+    tbody.innerHTML = '';
+
     try {
         const respuesta = await fetch('http://localhost:8000/sessions');
         const sesiones = await respuesta.json();
-        
-        const tbody = document.getElementById('lista-sesiones');
-        tbody.innerHTML = ''; // Limpiar antes de cargar
+
+        if (sesiones.length === 0) {
+            if (vacioEl) vacioEl.classList.remove('hidden');
+            if (tablaEl) tablaEl.classList.add('hidden');
+            return;
+        }
+        if (vacioEl) vacioEl.classList.add('hidden');
+        if (tablaEl) tablaEl.classList.remove('hidden');
 
         sesiones.forEach(sesion => {
             const fila = document.createElement('tr');
-            
-            // Si es SSH tendrá text_path, si es RDP/VNC tendrá video_path
             const tipo = sesion.video_path ? 'Escritorio' : 'Terminal';
-
+            const idEscaped = sesion.session_id.replace(/'/g, "\\'");
             fila.innerHTML = `
                 <td>${new Date(sesion.start_date).toLocaleString()}</td>
                 <td>${sesion.connection_name}</td>
                 <td>${sesion.username}</td>
                 <td>${tipo}</td>
                 <td>
-                    <button onclick="abrirAuditoria('${sesion.session_id}', '${tipo}')">Ver</button>
+                    <button class="btn-ver" onclick="abrirAuditoria('${idEscaped}', '${tipo}')">Ver</button>
+                    <button class="btn-descargar" onclick="descargarGrabacion('${idEscaped}', '${tipo}')">Descargar</button>
                 </td>
             `;
             tbody.appendChild(fila);
         });
     } catch (error) {
         console.error('Error al cargar historial:', error);
+        if (vacioEl) {
+            vacioEl.textContent = 'No se pudo cargar el listado. Comprueba que el backend esté en marcha.';
+            vacioEl.classList.remove('hidden');
+        }
+        if (tablaEl) tablaEl.classList.add('hidden');
+    }
+}
+
+// Descargar grabación: log en .txt, video en .mp4 (conversión en backend si hay guacenc)
+async function descargarGrabacion(id, tipo) {
+    const url = tipo === 'Terminal'
+        ? `http://localhost:8000/view-log?sessionId=${encodeURIComponent(id)}`
+        : `http://localhost:8000/download-video?sessionId=${encodeURIComponent(id)}`;
+    const extension = tipo === 'Terminal' ? 'txt' : 'mp4';
+    const nombre = `${id}.${extension}`;
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.statusText || 'Error al descargar');
+        const blob = await res.blob();
+        const disp = res.headers.get('Content-Disposition');
+        const match = disp && disp.match(/filename="([^"]+)"/);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = match ? match[1] : nombre;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    } catch (err) {
+        console.error(err);
+        alert('No se pudo descargar: ' + (err.message || 'archivo no encontrado'));
     }
 }
 
@@ -292,7 +344,15 @@ function cerrarVideo() {
 }
 
 // Exportar funciones al objeto window para botones HTML
-window.toggleAuditoria = toggleAuditoria;
 window.abrirAuditoria = abrirAuditoria;
+window.descargarGrabacion = descargarGrabacion;
 window.cerrarModal = cerrarModal;
 window.cerrarVideo = cerrarVideo;
+window.cargarHistorial = cargarHistorial;
+
+// Al cargar la app, mostrar el apartado de grabaciones con el listado
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGrabaciones);
+} else {
+    initGrabaciones();
+}

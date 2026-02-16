@@ -80,16 +80,14 @@ CREATE TABLE guacamole_connection_history (
 );
 ```
 
-### Migración (si ya tienes la BD creada)
+Al hacer `docker compose up -d`, el servicio **db-ensure** se ejecuta tras postgres y aplica las columnas de auditoría si faltan (idempotente). Si necesitas aplicar cambios a mano:
 
-Si actualizaste desde una versión anterior, ejecuta estos comandos para agregar las columnas de grabación:
-
-```sql
-ALTER TABLE guacamole_connection_history 
-ADD COLUMN IF NOT EXISTS video_path TEXT;
-
-ALTER TABLE guacamole_connection_history 
-ADD COLUMN IF NOT EXISTS text_path TEXT;
+```bash
+docker exec -it guacamole-postgres psql -U guacamole_user -d guacamole_db -c "
+ALTER TABLE guacamole_connection_history ADD COLUMN IF NOT EXISTS session_id VARCHAR(256);
+ALTER TABLE guacamole_connection_history ADD COLUMN IF NOT EXISTS video_path TEXT;
+ALTER TABLE guacamole_connection_history ADD COLUMN IF NOT EXISTS text_path TEXT;
+"
 ```
 
 **Conexión a la BD desde terminal:**
@@ -169,18 +167,26 @@ module.exports = {
 
 ### 1. Preparar la Infraestructura (Carpeta `guacamole-lab`)
 
-El contenedor de base de datos requiere un script de inicio que se genera desde la imagen de Guacamole:
+- **Un solo script** `initdb.sql`: esquema Guacamole y, al final, columnas de auditoría de la app. El `initdb.sql` del repo ya incluye todo. Si prefieres generarlo desde la imagen oficial:
+  ```bash
+  docker run --rm guacamole/guacamole /opt/guacamole/bin/initdb.sh --postgres > initdb.sql
+  ```
+  y añade al final las sentencias de auditoría (ALTER TABLE / CREATE INDEX) que verás en el `initdb.sql` del repo.
+
+- Al hacer **`docker compose up -d`**:
+  1. **postgres** arranca y, si `data/postgres` está vacío, ejecuta `initdb.sql` (crea tablas y columnas de auditoría).
+  2. **db-ensure** espera a que postgres esté listo y aplica las columnas de auditoría si faltan (por si la BD ya existía). Luego termina.
 
 ```bash
 cd guacamole-lab
 
-# Generar el script de inicialización SQL
+# Generar initdb (si no lo tienes)
 docker run --rm guacamole/guacamole /opt/guacamole/bin/initdb.sh --postgres > initdb.sql
 
-# Levantar los contenedores
-docker-compose up -d
+# Levantar todo (build no necesario salvo que cambies Dockerfile)
+docker compose up -d
 
-# Verificar que los contenedores estén corriendo
+# Verificar contenedores
 docker ps
 ```
 
@@ -204,20 +210,16 @@ Todas las sesiones se graban automáticamente:
 - **RDP/VNC**: Archivos `.guac` en `guacamole-lab/data/recordings/`
 - **SSH**: Archivos de texto en `guacamole-lab/data/typescript/`
 
-### Ver Grabaciones
+### Ver y descargar grabaciones
 
-1. Abre la aplicación
-2. Click en "Ver / Ocultar Auditoría"
-3. Selecciona una sesión del historial
-4. Click en "Abrir" para reproducir
+En el menú principal, el apartado **Grabaciones y auditoría** muestra el historial. En cada sesión puedes **Ver** (reproducir en la app) o **Descargar**: logs SSH en `.txt` y grabaciones RDP/VNC en `.mp4` (si está instalado `guacenc` en el host; si no, se descarga el `.guac`).
 
 ### API de Auditoría
 
-El backend expone los siguientes endpoints:
-
 - `GET /sessions` - Lista todas las sesiones grabadas
-- `GET /view-log?sessionId=XXX` - Descarga log de sesión SSH
-- `GET /view-video?sessionId=XXX` - Stream de grabación RDP/VNC
+- `GET /view-log?sessionId=XXX` - Log de sesión SSH (texto)
+- `GET /view-video?sessionId=XXX` - Stream de grabación RDP/VNC (.guac) para el reproductor
+- `GET /download-video?sessionId=XXX` - Descarga grabación como MP4 (conversión con guacenc) o .guac
 
 ## 🤝 Multisesión (Join)
 

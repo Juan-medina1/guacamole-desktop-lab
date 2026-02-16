@@ -39,12 +39,15 @@ module.exports = {
             "connection": {
                 "type": "rdp",
                 "settings": {
-                    "hostname": "windows-rdp-target",
+                    "hostname": "192.168.64.3",
                     "port": 3389,
-                    "username": "Docker",
-                    "password": "Clave1234",
+                    "username": "juan",
+                    "password": "juan",
                     "ignore-cert": "true",
-                    "security": "any"
+                    "security": "any",
+                    "width": 1280,
+                    "height": 720,
+                    "dpi": 96
                 }
             }
         }

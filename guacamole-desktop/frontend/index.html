@@ -31,26 +31,27 @@
                 </div>
             </div>
 
-            <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
-                <button id="btn-historial" onclick="toggleAuditoria()">Ver / Ocultar Auditoría</button>
-            </div>
-
-            <div id="seccion-auditoria" class="hidden" style="margin-top: 20px;">
-                <h2>Historial de Conexiones</h2>
-                <table id="tabla-sesiones">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Conexión</th>
-                            <th>Usuario</th>
-                            <th>Tipo</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista-sesiones">
+            <section class="grabaciones-section" aria-label="Grabaciones">
+                <h2 class="grabaciones-titulo">Grabaciones y auditoría</h2>
+                <p class="grabaciones-desc">Reproduce sesiones de escritorio (RDP/VNC) o revisa logs de terminal (SSH).</p>
+                <div id="seccion-auditoria" class="grabaciones-listado">
+                    <table id="tabla-sesiones">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Conexión</th>
+                                <th>Usuario</th>
+                                <th>Tipo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-sesiones">
                         </tbody>
-                </table>
-            </div>
+                    </table>
+                    <p id="grabaciones-vacio" class="grabaciones-vacio hidden">No hay grabaciones aún. Conecta a una máquina para generar sesiones.</p>
+                </div>
+                <button type="button" class="btn-refrescar" onclick="cargarHistorial()">Actualizar listado</button>
+            </section>
         </div>
 
         <div id="display-container" class="hidden">

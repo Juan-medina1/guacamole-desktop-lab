@@ -121,18 +121,85 @@ button {
     display: block;
 }
 
+/* ===============================
+   GRABACIONES
+   =============================== */
+.grabaciones-section {
+    margin-top: 2.5rem;
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.grabaciones-titulo {
+    font-size: 1.35rem;
+    margin-bottom: 0.35rem;
+    color: var(--accent-primary);
+}
+
+.grabaciones-desc {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.btn-grabaciones {
+    margin-top: 0;
+}
+
+.grabaciones-listado {
+    margin-top: 1rem;
+}
+
+.grabaciones-vacio {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.btn-refrescar {
+    margin-top: 1rem;
+    background: rgba(91, 194, 231, 0.2);
+    color: var(--accent-primary);
+    font-size: 0.9rem;
+}
+
 #tabla-sesiones {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
-    background: #1a1a2e; 
+    margin-top: 0;
+    background: var(--bg-primary);
     color: white;
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 #tabla-sesiones th, #tabla-sesiones td {
     padding: 12px;
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
     text-align: left;
+}
+
+#tabla-sesiones th {
+    background: rgba(91, 194, 231, 0.15);
+    color: var(--accent-primary);
+}
+
+.btn-ver,
+.btn-descargar {
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    margin-right: 0.5rem;
+}
+
+.btn-descargar {
+    background: rgba(91, 194, 231, 0.25);
+    color: var(--accent-primary);
 } 
 .modal {
     position: fixed; z-index: 1000; left: 0; top: 0;

@@ -791,3 +791,14 @@ JOIN guacamole_entity          ON permissions.username = guacamole_entity.name A
 JOIN guacamole_entity affected ON permissions.affected_username = affected.name AND guacamole_entity.type = 'USER'
 JOIN guacamole_user            ON guacamole_user.entity_id = affected.entity_id;
 
+--
+-- App de escritorio: columnas e índices para auditoría/grabaciones (idempotente)
+--
+ALTER TABLE guacamole_connection_history ADD COLUMN IF NOT EXISTS session_id VARCHAR(256);
+ALTER TABLE guacamole_connection_history ADD COLUMN IF NOT EXISTS video_path TEXT;
+ALTER TABLE guacamole_connection_history ADD COLUMN IF NOT EXISTS text_path TEXT;
+CREATE INDEX IF NOT EXISTS idx_guacamole_connection_history_session_id
+    ON guacamole_connection_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_guacamole_connection_history_start_date
+    ON guacamole_connection_history(start_date DESC);
+

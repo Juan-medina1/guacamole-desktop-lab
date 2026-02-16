@@ -2,10 +2,11 @@ const GuacamoleLite = require('guacamole-lite');
 const http = require('http');
 const url = require('url');
 const crypto = require('crypto');
-const { Pool } = require('pg'); // Importamos Pool para Postgres
+const { Pool } = require('pg');
 const config = require('./config');
-const fs = require('fs'); 
+const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 // Conexión a la base de datos usando la config 
 const pool = new Pool(config.db);
@@ -20,6 +21,18 @@ function mapGuacdPathToHost(filePath, hostBase, guacdBase) {
     }
 
     return path.resolve(filePath);
+}
+
+// Resuelve la ruta real del archivo probando con y sin extensión (compatibilidad con grabaciones antiguas)
+function resolveRecordingPath(resolvedPath, extension) {
+    if (!resolvedPath) return null;
+    const candidates = [resolvedPath];
+    if (!resolvedPath.endsWith(extension)) candidates.push(resolvedPath + extension);
+    else candidates.push(resolvedPath.slice(0, -extension.length));
+    for (const p of candidates) {
+        if (fs.existsSync(p)) return p;
+    }
+    return null;
 }
 
 function encryptToken(value) {
@@ -90,19 +103,19 @@ const server = http.createServer(async (req, res) => {
         let videoPath = null;
         let textPath = null;
 
-        // Configuración dinámica basada en protocolo
+        // Configuración dinámica basada en protocolo (extensiones .guac / .txt para identificar archivos)
         if (connectionType === 'rdp' || connectionType === 'vnc') {
             connectionConfig.connection.settings['recording-path'] = config.RECORDING_PATH_GUACD;
-            connectionConfig.connection.settings['recording-name'] = sessionId;
+            connectionConfig.connection.settings['recording-name'] = `${sessionId}.guac`;
             connectionConfig.connection.settings['create-recording-path'] = 'true';
-            videoPath = `${config.RECORDING_PATH_HOST}/${sessionId}`;
-        } 
+            videoPath = `${config.RECORDING_PATH_HOST}/${sessionId}.guac`;
+        }
         else if (connectionType === 'ssh') {
             connectionConfig.connection.settings['typescript-path'] = config.TYPESCRIPT_PATH_GUACD;
-            connectionConfig.connection.settings['typescript-name'] = sessionId;
+            connectionConfig.connection.settings['typescript-name'] = `${sessionId}.txt`;
             connectionConfig.connection.settings['create-typescript-path'] = 'true';
             connectionConfig.connection.settings['recording-include-keys'] = 'true';
-            textPath = `${config.TYPESCRIPT_PATH_HOST}/${sessionId}`;
+            textPath = `${config.TYPESCRIPT_PATH_HOST}/${sessionId}.txt`;
         }
 
         //  REGISTRO EN LA BASE DE DATOS 
@@ -166,15 +179,16 @@ const server = http.createServer(async (req, res) => {
             console.error('[DB ERROR] Error al buscar log:', err.message);
         }
 
-        //convertir ruta de guacd a ruta del host para leer el archivo
+        // Convertir ruta de guacd a ruta del host; probar con y sin .txt (grabaciones antiguas)
         try {
-            const resolvedPath = mapGuacdPathToHost(
+            let resolvedPath = mapGuacdPathToHost(
                 filePath,
                 config.TYPESCRIPT_PATH_HOST,
                 config.TYPESCRIPT_PATH_GUACD
             );
+            resolvedPath = resolveRecordingPath(resolvedPath, '.txt');
 
-            if (resolvedPath && fs.existsSync(resolvedPath)) {
+            if (resolvedPath) {
                 const content = fs.readFileSync(resolvedPath, 'utf8');
                 res.writeHead(200, { 
                     'Content-Type': 'text/plain', 
@@ -211,17 +225,18 @@ const server = http.createServer(async (req, res) => {
             console.error('[DB ERROR] Error al buscar video:', err.message);
         }
 
-        // Convertir ruta de guacd a ruta del host para leer el archivo
+        // Convertir ruta de guacd a ruta del host; probar con y sin .guac (grabaciones antiguas)
         try {
-            const resolvedPath = mapGuacdPathToHost(
+            let resolvedPath = mapGuacdPathToHost(
                 filePath,
                 config.RECORDING_PATH_HOST,
                 config.RECORDING_PATH_GUACD
             );
+            resolvedPath = resolveRecordingPath(resolvedPath, '.guac');
 
             console.log(`[VIDEO] Ruta final: ${resolvedPath}`);
 
-            if (resolvedPath && fs.existsSync(resolvedPath)) {
+            if (resolvedPath) {
                 res.writeHead(200, { 
                     'Content-Type': 'application/octet-stream', 
                     'Access-Control-Allow-Origin': '*',
@@ -238,7 +253,58 @@ const server = http.createServer(async (req, res) => {
         }
         return;
     }
-    
+
+    // RUTA 5: Descarga de video como MP4 (convierte .guac → .m4v con guacenc si está instalado)
+    if (parsedUrl.pathname === '/download-video' && parsedUrl.query.sessionId) {
+        const sessionId = parsedUrl.query.sessionId;
+        let filePath = null;
+        try {
+            const result = await pool.query(
+                'SELECT video_path FROM guacamole_connection_history WHERE session_id = $1 LIMIT 1',
+                [sessionId]
+            );
+            if (result.rows.length > 0) filePath = result.rows[0].video_path;
+        } catch (err) {
+            console.error('[DB ERROR]', err.message);
+        }
+        let resolvedPath = mapGuacdPathToHost(
+            filePath,
+            config.RECORDING_PATH_HOST,
+            config.RECORDING_PATH_GUACD
+        );
+        resolvedPath = resolveRecordingPath(resolvedPath, '.guac');
+        if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+            res.writeHead(404); res.end();
+            return;
+        }
+        const m4vPath = resolvedPath + '.m4v';
+        const run = spawnSync('guacenc', ['-f', resolvedPath], {
+            cwd: path.dirname(resolvedPath),
+            encoding: 'utf8',
+            timeout: 120000,
+        });
+        if (run.status === 0 && fs.existsSync(m4vPath)) {
+            res.writeHead(200, {
+                'Content-Type': 'video/mp4',
+                'Content-Disposition': `attachment; filename="${sessionId}.mp4"`,
+                'Access-Control-Allow-Origin': '*',
+            });
+            const stream = fs.createReadStream(m4vPath);
+            res.on('finish', () => {
+                try { fs.unlinkSync(m4vPath); } catch (_) {}
+            });
+            stream.pipe(res);
+        } else {
+            res.writeHead(200, {
+                'Content-Type': 'application/octet-stream',
+                'Content-Disposition': `attachment; filename="${sessionId}.guac"`,
+                'Access-Control-Allow-Origin': '*',
+            });
+            fs.createReadStream(resolvedPath).pipe(res);
+        }
+        return;
+    }
+
     res.writeHead(404); res.end();
 });
 
